@@ -70,7 +70,12 @@ class ValueIteration(AbstractSolver):
             ################################
             #   YOUR IMPLEMENTATION HERE   #
             ################################
-
+            greedy_action = self.create_greedy_policy()(each_state)
+            greedy_action_value = 0
+            for probability, next_state, reward, done in self.env.P[each_state][np.argmax(greedy_action)]:
+                greedy_action_value += probability * (reward + self.options.gamma * self.V[next_state])            
+            self.V[each_state] = greedy_action_value
+                        
         # Dont worry about this part
         self.statistics[Statistics.Rewards.value] = np.sum(self.V)
         self.statistics[Statistics.Steps.value] = -1
@@ -142,8 +147,11 @@ class ValueIteration(AbstractSolver):
             ################################
             #   YOUR IMPLEMENTATION HERE   #
             ################################
-            
-
+            action_values = self.one_step_lookahead(state)
+            maxaction = np.argmax(action_values)
+            policy = np.zeros_like(action_values)
+            policy[maxaction] = 1
+            return policy
         return policy_fn
 
 
