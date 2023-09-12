@@ -196,11 +196,18 @@ class AsynchVI(ValueIteration):
         # Do a one-step lookahead to find the best action       #
         # Update the value function. Ref: Sutton book eq. 4.10. #
         #########################################################
-
+        state = self.pq.pop()
+        new_action_value = 0
+        best_action = self.create_greedy_policy()(state)
+        for probability, next_state, reward, done in self.env.P[state][best_action]:
+            new_action_value += probability * (reward + self.options.gamma * self.V[next_state])
+        self.pq.update(state, -self.__bellman_error(new_action_value, state))
+        self.V[state] = new_action_value
         # you can ignore this part
         self.statistics[Statistics.Rewards.value] = np.sum(self.V)
         self.statistics[Statistics.Steps.value] = -1
-
+    def __bellman_error(self, new_action_value, state):
+        return abs(new_action_value - self.V[state])
     def __str__(self):
         return "Asynchronous VI"
 
