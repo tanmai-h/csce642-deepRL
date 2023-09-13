@@ -41,12 +41,15 @@ class PolicyIteration(AbstractSolver):
         # For each state...
         for s in range(self.env.observation_space.n):
             # Find the best action by one-step lookahead
-            # Ties are resolved arbitarily
+            # Ties are resolved arbitrarily
+            chosen_action = np.argmax(self.one_step_lookahead(s))
 
-            ################################
-            #   YOUR IMPLEMENTATION HERE   #
-            ################################
+            # If the best action is different from the current policy, update the policy
+            if chosen_action != np.argmax(self.policy[s]):
+                policy_stable = False
 
+            # Update the policy with a deterministic policy (1.0 for the chosen action, 0.0 for others)
+            self.policy[s] = np.eye(self.env.action_space.n)[chosen_action]
 
         # In DP methods we don't interact with the environment so we will set the reward to be the sum of state values
         # and the number of steps to -1 representing an invalid value
@@ -82,7 +85,7 @@ class PolicyIteration(AbstractSolver):
             self.policy: [S, A] shaped matrix representing the policy.
             self.env: OpenAI env. env.P represents the transition probabilities of the environment.
                 env.P[s][a] is a list of transition tuples (prob, next_state, reward, done).
-                env.nS is a number of states in the environment.
+                env.nS is a number of states in the enironment.
                 env.nA is a number of actions in the environment.
             theta: We stop evaluation once our value function change is less than theta for all states.
             self.options.gamma: Gamma discount factor.
@@ -91,11 +94,27 @@ class PolicyIteration(AbstractSolver):
         ################################
         #   YOUR IMPLEMENTATION HERE   #
         ################################
-
+        state_action_values = np.zeros_like((self.env.observation_space.n, self.env.action_space))
+        eq_constants = np.zeros_like((self.env.observation_space.n,))
+        print(state_action_values.shape)
+        print(eq_constants.shape)
+        for state in range(self.env.observation_space.n):
+            # p1*gm*vs1' .. pn*gm*vsn' + p1*r1 .. pn*rn
+            constant = 0
+            next_state_coeffs = np.zeros((self.env.observation_space.n,))
+            print("next_state_coeffs", next_state_coeffs.shape)
+            for action in range(self.env.action_space.n):
+                for prob, next_state, reward, done in self.env.P[state][action]:
+                    constant += prob*reward 
+                    next_state_coeffs[next_state] += prob * reward * self.options.gamma
+            state_action_values[state] = next_state_coeffs
+            eq_constants[state] = constant
+        solved_action_values = np.linalg.solve(state_action_values, eq_constants)
+        for state in range(self.env.observation_space.n):
+            self.V[state] = solved_action_values[state]
     def create_greedy_policy(self):
         """
         Return the currently known policy.
-
 
         Returns:
             A function that takes an observation as input and action as integer
