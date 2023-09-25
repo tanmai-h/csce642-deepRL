@@ -43,11 +43,6 @@ class PolicyIteration(AbstractSolver):
             # Find the best action by one-step lookahead
             # Ties are resolved arbitrarily
             chosen_action = np.argmax(self.one_step_lookahead(s))
-
-            # If the best action is different from the current policy, update the policy
-            if chosen_action != np.argmax(self.policy[s]):
-                policy_stable = False
-
             # Update the policy with a deterministic policy (1.0 for the chosen action, 0.0 for others)
             self.policy[s] = np.eye(self.env.action_space.n)[chosen_action]
 
@@ -94,24 +89,23 @@ class PolicyIteration(AbstractSolver):
         ################################
         #   YOUR IMPLEMENTATION HERE   #
         ################################
-        state_action_values = np.zeros_like((self.env.observation_space.n, self.env.action_space))
-        eq_constants = np.zeros_like((self.env.observation_space.n,))
-        print(state_action_values.shape)
-        print(eq_constants.shape)
-        for state in range(self.env.observation_space.n):
-            # p1*gm*vs1' .. pn*gm*vsn' + p1*r1 .. pn*rn
-            constant = 0
-            next_state_coeffs = np.zeros((self.env.observation_space.n,))
-            print("next_state_coeffs", next_state_coeffs.shape)
-            for action in range(self.env.action_space.n):
-                for prob, next_state, reward, done in self.env.P[state][action]:
-                    constant += prob*reward 
-                    next_state_coeffs[next_state] += prob * reward * self.options.gamma
-            state_action_values[state] = next_state_coeffs
-            eq_constants[state] = constant
-        solved_action_values = np.linalg.solve(state_action_values, eq_constants)
-        for state in range(self.env.observation_space.n):
-            self.V[state] = solved_action_values[state]
+        while True:
+            delta = 0
+            for s in range(self.env.observation_space.n):
+                v = self.V[s]
+                b = np.zeros(self.env.observation_space.n)
+                b[s] = 1  # Create a one-hot vector for the current state
+                a = np.zeros((self.env.observation_space.n, self.env.observation_space.n))
+                for a_idx, action_prob in enumerate(self.policy[s]):
+                    for prob, next_state, reward, done in self.env.P[s][a_idx]:
+                        a[s][next_state] += action_prob * prob * self.options.gamma
+                # Use np.dot to compute the inner product of matrices and get a scalar result
+                result_scalar_array = np.dot(np.linalg.inv(np.eye(self.env.observation_space.n) - a), b)
+                self.V[s] = result_scalar_array[0]
+                delta = max(delta, abs(v - self.V[s]))
+            if delta < 1e-6:
+                break
+    
     def create_greedy_policy(self):
         """
         Return the currently known policy.
