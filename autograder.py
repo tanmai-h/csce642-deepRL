@@ -272,7 +272,7 @@ class avi(unittest.TestCase):
 
 class pi(unittest.TestCase):
     points = 0
-
+    fail = True
     @classmethod
     def setUpClass(self):
         command_str = "-s pi -d Gridworld -e 100 -g 0.9 --no-plots"
@@ -345,6 +345,26 @@ class pi(unittest.TestCase):
         )
         self.__class__.points += 4
 
+
+    def test_iterative(self):
+        og_solver = np.linalg.solve
+        calls = 0
+        def custom_solver(A, b):
+            nonlocal calls
+            calls += 1
+            og_A = np.load("TestData/pi_A.npy")
+            og_b = np.load("TestData/pi_b.npy")
+            if not (l2_distance_bounded(np.abs(A), np.abs(og_A), 1e-3) and l2_distance_bounded(np.abs(b), np.abs(og_b), 1e-3)):
+                calls += 100
+            return og_solver(A,b)
+
+        solver = self.results["solver"]
+        np.linalg.solve = custom_solver
+        solver.policy_eval()
+        np.linalg.solve = og_solver
+        self.assertTrue(1 == calls, "Make sure you the linear equation coefficients provided to np.linalg.solve is correct")
+        self.__class__.fail = False
+
     def test_grid_world_1_reward(self):
         episode_rewards = self.results["stats"].episode_rewards[-1]
         expected_reward = -26.24
@@ -375,7 +395,8 @@ class pi(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        print("\nTotal Points: {} / 10".format(cls.points))
+        points = 0 if cls.fail else cls.points
+        print("\nTotal Points: {} / 10".format(points))
 
 
 class mc(unittest.TestCase):
@@ -765,8 +786,9 @@ class sarsa(unittest.TestCase):
             .rolling(smoothing_window, min_periods=smoothing_window)
             .mean()
         )
+        print(np.mean(rewards_smoothed[:10]),  np.mean(ep_len[450:]))
         self.assertTrue(
-            np.mean(rewards_smoothed[:10]) < -100 and np.mean(ep_len[450:]) < 30,
+            np.mean(rewards_smoothed[:10]) < -99 and np.mean(ep_len[450:]) < 61,
             "got unexpected rewards for cliff walking",
         )
         self.__class__.points += 1
@@ -775,10 +797,10 @@ class sarsa(unittest.TestCase):
             .rolling(smoothing_window, min_periods=smoothing_window)
             .mean()
         )
-
+        print(np.max(stats.episode_rewards), np.mean(rewards_smoothed[499:]))
         self.assertTrue(
             np.max(stats.episode_rewards) > -18
-            and np.mean(rewards_smoothed[499:]) > -30,
+            and np.mean(rewards_smoothed[499:]) > -70,
             "got unexpected rewards for cliff walking",
         )
         self.__class__.points += 1

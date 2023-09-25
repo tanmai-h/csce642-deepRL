@@ -5,7 +5,6 @@
 # This CSCE-689 RL assignment codebase was developed at Texas A&M University.
 # The core code base was developed by Guni Sharon (guni@tamu.edu).
 
-import flappy_bird_gymnasium
 import gymnasium as gym
 import optparse
 import sys
@@ -19,7 +18,6 @@ gym.logger.set_level(40)
 if "../" not in sys.path:
     sys.path.append("../")
 
-from pynput import keyboard
 from lib import plotting
 from Solvers.Abstract_Solver import AbstractSolver, Statistics
 import Solvers.Available_solvers as avs
@@ -191,8 +189,6 @@ def getEnv(domain, render_mode=""):
         return CliffWalkingEnv()
     elif domain == "WindyGridworld":
         return WindyGridworldEnv()
-    elif domain == "FlappyBird-v0":
-        return gym.make(domain)
     else:
         try:
             return gym.make(domain, render_mode=render_mode)
@@ -213,6 +209,7 @@ render = False
 
 
 def on_press(key):
+    from pynput import keyboard
     if key == keyboard.Key.esc:
         return False  # stop listener
     try:
@@ -263,11 +260,13 @@ def main(options):
     # Keeps track of useful statistics
     stats = plotting.EpisodeStats(episode_lengths=[], episode_rewards=[])
 
-    # Detects key press for rendering
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()  # start listening on a separate thread
-
     plt.ion()
+    if not options.disable_plots:
+        # Detects key press for rendering
+        from pynput import keyboard
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()  # start listening on a separate thread
+
 
     with open(os.path.join(resultdir, options.outfile + ".csv"), "a+") as result_file:
         result_file.write("\n")
@@ -291,7 +290,8 @@ def main(options):
                 solver.run_greedy()
                 render = False
             if (
-                options.solver in ["ql", "sarsa", "aql", "dqn", "reinforce", "a2c"]
+                options.solver
+                in ["ql", "sarsa", "aql", "dqn", "reinforce", "a2c", "ddpg"]
                 and not options.disable_plots
             ):
                 solver.plot(stats, int(0.1 * options.episodes), False)

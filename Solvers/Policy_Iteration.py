@@ -40,8 +40,8 @@ class PolicyIteration(AbstractSolver):
 
         # For each state...
         for s in range(self.env.observation_space.n):
+            # Ties are resolved by returning the first action with maximum value (Hint: use max/argmax directly).
             # Find the best action by one-step lookahead
-            # Ties are resolved arbitrarily
             chosen_action = np.argmax(self.one_step_lookahead(s))
             # Update the policy with a deterministic policy (1.0 for the chosen action, 0.0 for others)
             self.policy[s] = np.eye(self.env.action_space.n)[chosen_action]
@@ -82,7 +82,6 @@ class PolicyIteration(AbstractSolver):
                 env.P[s][a] is a list of transition tuples (prob, next_state, reward, done).
                 env.nS is a number of states in the enironment.
                 env.nA is a number of actions in the environment.
-            theta: We stop evaluation once our value function change is less than theta for all states.
             self.options.gamma: Gamma discount factor.
             np.linalg.solve(a, b) # Won't work with discount factor = 0!
         """
@@ -111,7 +110,7 @@ class PolicyIteration(AbstractSolver):
         Return the currently known policy.
 
         Returns:
-            A function that takes an observation as input and action as integer
+            A function that takes an observation as input and greedy action as integer
         """
         def policy_fn(state):
             return np.argmax(self.policy[state])

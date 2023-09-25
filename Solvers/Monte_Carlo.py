@@ -98,12 +98,10 @@ class MonteCarlo(AbstractSolver):
         Creates a greedy (soft) policy based on Q values.
 
         Returns:
-            A function that takes a state as input and returns a vector
-            of action probabilities.
+            A function that takes an observation as input and returns a greedy
+            action
 
         Use:
-            np.zeros_like(self.Q[state], dtype=float): a zero vector of
-                size number of actions.
             np.argmax(self.Q[state]): action with highest q value
         """
 
