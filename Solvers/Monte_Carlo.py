@@ -59,13 +59,40 @@ class MonteCarlo(AbstractSolver):
 
         # Generate an episode.
         # An episode is an array of (state, action, reward) tuples
+        # Generate an episode.
+        # An episode is an array of (state, action, reward) tuples
         episode = []
         state, _ = self.env.reset()
         discount_factor = self.options.gamma
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
 
+        for t in range(self.options.steps):
+            # Sample an action using the epsilon-greedy policy
+            action_probs = self.policy(state)
+            action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
+
+            # Take a step in the environment
+            next_state, reward, done, _ = self.step(action)
+
+            # Append the state, action, reward tuple to the episode
+            episode.append((state, action, reward))
+
+            # If the episode is done, break
+            if done:
+                break
+
+            # Update the current state
+            state = next_state
+
+        # Process the episode and update the Q-values
+        G = 0  # Initialize the return
+        for t in reversed(range(len(episode))):
+            state, action, reward = episode[t]
+            G = self.options.gamma * G + reward
+            self.returns_sum[(state, action)] += G
+            self.returns_count[(state, action)] += 1
+            self.Q[state][action] = (
+                self.returns_sum[(state, action)] / self.returns_count[(state, action)]
+            )
     def __str__(self):
         return "Monte Carlo"
 
@@ -76,7 +103,7 @@ class MonteCarlo(AbstractSolver):
         Use:
             self.Q: A dictionary that maps from state -> action-values.
                 Each value is a numpy array of length nA
-            self.options.epsilon: Chance the sample a random action. Float betwen 0 and 1.
+            self.options.epsilon: Chance the sample a random action. Float between 0 and 1.
             self.env.action_space.n: Number of actions in the environment.
 
         Returns:
@@ -85,31 +112,31 @@ class MonteCarlo(AbstractSolver):
 
         """
         nA = self.env.action_space.n
+        epsilon = self.options.epsilon
 
         def policy_fn(observation):
-            ################################
-            #   YOUR IMPLEMENTATION HERE   #
-            ################################
+            # Initialize the action probabilities uniformly
+            action_probs = np.ones(nA, dtype=float) * epsilon / nA
+            best_action = np.argmax(self.Q[observation])
+            action_probs[best_action] += 1.0 - epsilon
+            return action_probs
 
         return policy_fn
-
+    
     def create_greedy_policy(self):
         """
         Creates a greedy (soft) policy based on Q values.
 
         Returns:
-            A function that takes an observation as input and returns a greedy
-            action
+            A function that takes an observation as input and returns a greedy action.
 
         Use:
-            np.argmax(self.Q[state]): action with highest q value
+            np.argmax(self.Q[state]): action with the highest q-value
         """
 
         def policy_fn(state):
-            ################################
-            #   YOUR IMPLEMENTATION HERE   #
-            ################################
-
+            # Choose the action with the highest Q-value
+            return np.argmax(self.Q[state])
 
         return policy_fn
 
