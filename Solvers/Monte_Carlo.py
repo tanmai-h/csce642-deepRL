@@ -173,7 +173,7 @@ class OffPolicyMC(MonteCarlo):
         Run a single episode of Monte Carlo Control Off-Policy Control using Weighted Importance Sampling.
 
         Use:
-            elf.env: OpenAI environment.
+            self.env: OpenAI environment.
             self.options.steps: steps per episode
             self.behavior_policy(state): returns a soft policy which is the
                 behavior policy (act according to this policy)
@@ -186,11 +186,46 @@ class OffPolicyMC(MonteCarlo):
         episode = []
         # Reset the environment
         state, _ = self.env.reset()
+        discount_factor = self.options.gamma
 
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
-        
+        for _ in range(self.options.steps):
+            # Select an action using the behavior policy
+            action_probs = self.behavior_policy(state)
+            action = np.random.choice(len(action_probs), p=action_probs)
+
+            # Take one step in the environment
+            next_state, reward, done, _ = self.step(action)
+
+            # Append the transition to the episode
+            episode.append((state, action, reward))
+
+            if done:
+                break
+
+            state = next_state
+
+        # Initialize the cumulative return
+        G = 0.0
+        # Initialize the importance sampling ratio
+        W = 1.0
+
+        # Iterate over the episode in reverse order
+        for t in reversed(range(len(episode))):
+            state, action, reward = episode[t]
+            G = self.options.gamma * G + reward
+
+            # Update the cumulative denominator for importance sampling
+            self.C[state][action] += W
+
+            # Update the Q-value using weighted importance sampling
+            self.Q[state][action] += (W / self.C[state][action]) * (G - self.Q[state][action])
+
+            # If the action taken by the behavior policy is not the same as the target policy, break
+            if action != np.argmax(self.target_policy(state)):
+                break
+
+            # Update the importance sampling ratio
+            W *= 1.0 / self.behavior_policy(state)[action]
 
     def create_random_policy(self):
         """
