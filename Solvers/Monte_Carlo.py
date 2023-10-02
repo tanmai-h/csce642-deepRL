@@ -5,7 +5,7 @@
 # This CSCE-689 RL assignment codebase was developed at Texas A&M University.
 # The core code base was developed by Guni Sharon (guni@tamu.edu).
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 import numpy as np
 from Solvers.Abstract_Solver import AbstractSolver
 from lib import plotting
@@ -63,7 +63,6 @@ class MonteCarlo(AbstractSolver):
         # An episode is an array of (state, action, reward) tuples
         episode = []
         state, _ = self.env.reset()
-        discount_factor = self.options.gamma
 
         for t in range(self.options.steps):
             # Sample an action using the epsilon-greedy policy
@@ -186,12 +185,11 @@ class OffPolicyMC(MonteCarlo):
         episode = []
         # Reset the environment
         state, _ = self.env.reset()
-        discount_factor = self.options.gamma
 
         for _ in range(self.options.steps):
             # Select an action using the behavior policy
             action_probs = self.behavior_policy(state)
-            action = np.random.choice(len(action_probs), p=action_probs)
+            action = np.argmax(action_probs)
 
             # Take one step in the environment
             next_state, reward, done, _ = self.step(action)
@@ -221,7 +219,7 @@ class OffPolicyMC(MonteCarlo):
             self.Q[state][action] += (W / self.C[state][action]) * (G - self.Q[state][action])
 
             # If the action taken by the behavior policy is not the same as the target policy, break
-            if action != np.argmax(self.target_policy(state)):
+            if action != self.target_policy(state):
                 break
 
             # Update the importance sampling ratio
