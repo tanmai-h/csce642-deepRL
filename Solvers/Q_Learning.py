@@ -18,7 +18,6 @@ from sklearn.linear_model import SGDRegressor
 from Solvers.Abstract_Solver import AbstractSolver
 from lib import plotting
 
-
 class QLearning(AbstractSolver):
     def __init__(self, env, eval_env, options):
         assert str(env.action_space).startswith("Discrete") or str(
@@ -34,47 +33,48 @@ class QLearning(AbstractSolver):
     def train_episode(self):
         """
         Run a single episode of the Q-Learning algorithm: Off-policy TD control.
-        Finds the optimal greedy policy
-        while following an epsilon-greedy policy
+        Finds the optimal greedy policy while following an epsilon-greedy policy.
 
         Use:
             self.env: OpenAI environment.
-            self.options.steps: steps per episode
-            self.epsilon_greedy_action(state): returns an epsilon greedy action
-            np.argmax(self.Q[next_state]): action with highest q value
+            self.options.steps: steps per episode.
+            self.epsilon_greedy_action(state): returns an epsilon-greedy action.
+            np.argmax(self.Q[next_state]): action with the highest q value.
             self.options.gamma: Gamma discount factor.
-            self.Q[state][action]: q value for ('state', 'action')
+            self.Q[state][action]: q value for ('state', 'action').
             self.options.alpha: TD learning rate.
-            next_state, reward, done, _ = self.step(action): advance one step in the environment
+            next_state, reward, done, _ = self.step(action): advance one step in the environment.
         """
-
         # Reset the environment
         state, _ = self.env.reset()
 
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
+        for _ in range(self.options.steps):
+            action = self.epsilon_greedy_action(state)
+            next_state, reward, done, _ = self.step(action)
+
+            # Q-Learning update rule
+            best_next_action = np.argmax(self.Q[next_state])
+            target = reward + self.options.gamma * self.Q[next_state][best_next_action]
+            self.Q[state][action] += self.options.alpha * (target - self.Q[state][action])
+
+            state = next_state
+
+            if done:
+                break
 
     def __str__(self):
         return "Q-Learning"
-
-    def plot(self, stats, smoothing_window=20, final=False):
-        plotting.plot_episode_stats(stats, smoothing_window, final=final)
 
     def create_greedy_policy(self):
         """
         Creates a greedy policy based on Q values.
 
-
         Returns:
-            A function that takes an observation as input and returns a greedy
-            action.
+            A function that takes a state as input and returns a greedy action.
         """
 
         def policy_fn(state):
-            ################################
-            #   YOUR IMPLEMENTATION HERE   #
-            ################################
+            return np.argmax(self.Q[state])
 
         return policy_fn
 
@@ -84,14 +84,34 @@ class QLearning(AbstractSolver):
         epsilon.
 
         Use:
-            self.env.action_space.n: size of the action space
-            np.argmax(self.Q[state]): action with highest q value
+            self.env.action_space.n: size of the action space.
+            np.argmax(self.Q[state]): action with the highest q value.
         Returns:
-            Probability of taking actions as a vector where each entry is the probability of taking that action
+            The selected action.
         """
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
+    def epsilon_greedy_action(self, state):
+        """
+        Return an epsilon-greedy action based on the current Q-values and epsilon.
+
+        Parameters:
+            state: The current state for which to select an action.
+
+        Returns:
+            int: The selected action.
+        """
+        # Use self.env.action_space.n to get the size of the action space
+        action_space_size = self.env.action_space.n
+        
+        # Use np.argmax(self.Q[state]) to find the action with the highest Q value
+        best_action = np.argmax(self.Q[state])
+        
+        if np.random.rand() < self.options.epsilon:
+            return np.random.randint(action_space_size)  # Choose a random action with epsilon probability
+        else:
+            return best_action  # Choose the action with the highest Q value
+
+    def plot(self, stats, smoothing_window=20, final=False):
+        plotting.plot_episode_stats(stats, smoothing_window, final=final)
 
 
 class ApproxQLearning(QLearning):
@@ -121,7 +141,7 @@ class ApproxQLearning(QLearning):
         ################################
         #   YOUR IMPLEMENTATION HERE   #
         ################################
-
+        pass
     def __str__(self):
         return "Approx Q-Learning"
 
@@ -139,6 +159,7 @@ class ApproxQLearning(QLearning):
         ################################
         #   YOUR IMPLEMENTATION HERE   #
         ################################
+        pass
 
     def create_greedy_policy(self):
         """
@@ -155,7 +176,7 @@ class ApproxQLearning(QLearning):
             #   YOUR IMPLEMENTATION HERE   #
             ################################
             
-
+            pass
         return policy_fn
 
     def plot(self, stats, smoothing_window=20, final=False):

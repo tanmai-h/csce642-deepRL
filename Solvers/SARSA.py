@@ -1,16 +1,7 @@
-# Licensing Information:  You are free to use or extend this codebase for
-# educational purposes provided that (1) you do not distribute or publish
-# solutions, (2) you retain this notice, and (3) inform Guni Sharon at 
-# guni@tamu.edu regarding your usage (relevant statistics is reported to NSF).
-# The development of this assignment was supported by NSF (IIS-2238979).
-# Contributors:
-# The core code base was developed by Guni Sharon (guni@tamu.edu).
-
 from collections import defaultdict
 import numpy as np
 from Solvers.Abstract_Solver import AbstractSolver
 from lib import plotting
-
 
 class Sarsa(AbstractSolver):
     def __init__(self, env, eval_env, options):
@@ -44,9 +35,19 @@ class Sarsa(AbstractSolver):
 
         # Reset the environment
         state, _ = self.env.reset()
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
+        action = np.argmax(self.epsilon_greedy_action(state))
+
+        for _ in range(self.options.steps):
+            next_state, reward, done, _, = self.step(action)
+            next_action = np.argmax(self.epsilon_greedy_action(state))
+            # SARSA update rule
+            target = reward + self.options.gamma * self.Q[next_state][next_action]
+            self.Q[state][action] += self.options.alpha * (target - self.Q[state][action])
+            state = next_state
+            action = next_action
+
+            if done:
+                break
 
     def __str__(self):
         return "Sarsa"
@@ -60,9 +61,7 @@ class Sarsa(AbstractSolver):
         """
 
         def policy_fn(state):
-            ################################
-            #   YOUR IMPLEMENTATION HERE   #
-            ################################
+            return np.argmax(self.Q[state])
 
         return policy_fn
 
@@ -73,13 +72,12 @@ class Sarsa(AbstractSolver):
 
         Use:
             self.env.action_space.n: the size of the action space
-            np.argmax(self.Q[state]): action with highest q value
+            np.argmax(self.Q[state]): action with the highest q value
         Returns:
-            Probability of taking actions as a vector where each entry is the probability of taking that action
+            The selected action.
         """
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
-
+        action_probs = np.ones(self.env.action_space.n) * self.options.epsilon / self.env.action_space.n
+        action_probs[np.argmax(self.Q[state])] = 1 - self.options.epsilon + self.options.epsilon / self.env.action_space.n
+        return p
     def plot(self, stats, smoothing_window=20, final=False):
         plotting.plot_episode_stats(stats, smoothing_window, final=final)
