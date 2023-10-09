@@ -96,7 +96,6 @@ class QLearning(AbstractSolver):
 
 
 class ApproxQLearning(QLearning):
-    # MountainCar-v0
     def __init__(self, env, eval_env, options):
         self.estimator = Estimator(env)
         super().__init__(env, eval_env, options)
@@ -104,25 +103,34 @@ class ApproxQLearning(QLearning):
     def train_episode(self):
         """
         Run a single episode of the approximated Q-Learning algorithm: Off-policy TD control.
-        Finds the optimal greedy policy while following an epsilon-greedy policy
+        Finds the optimal greedy policy while following an epsilon-greedy policy.
 
         Use:
             self.env: OpenAI environment.
-            self.options.steps: steps per episode
+            self.options.steps: steps per episode.
             self.options.gamma: Gamma discount factor.
-            self.estimator: The Q-function approximator
-            self.estimator.predict(s,a): Returns the predicted q value for a given s,a pair
-            self.estimator.update(s,a,y): Trains the estimator towards Q(s,a)=y
-            next_state, reward, done, _ = self.step(action): To advance one step in the environment
+            self.estimator: The Q-function approximator.
+            self.estimator.predict(s, a): Returns the predicted q value for a given s, a pair.
+            self.estimator.update(s, a, y): Trains the estimator towards Q(s, a) = y.
+            next_state, reward, done, _ = self.step(action): Advance one step in the environment.
         """
-
         # Reset the environment
         state, _ = self.env.reset()
+        for _ in range(self.options.steps):
+            action = np.argmax(self.epsilon_greedy(state))
+            next_state, reward, done, _ = self.step(action)
 
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
-        pass
+            # Approximate Q-Learning update rule
+            q_values_next = [self.estimator.predict(next_state, a) for a in range(self.env.action_space.n)]
+            best_next_action = np.argmax(q_values_next)
+            target = reward + self.options.gamma * q_values_next[best_next_action]
+            self.estimator.update(state, action, target)
+
+            state = next_state
+
+            if done:
+                break
+
     def __str__(self):
         return "Approx Q-Learning"
 
@@ -132,32 +140,29 @@ class ApproxQLearning(QLearning):
         epsilon.
 
         Use:
-            self.env.action_space.n: size of the action space
-            np.argmax(self.Q[state]): action with highest q value
+            self.env.action_space.n: size of the action space.
+            np.argmax(self.estimator.predict(state)): action with the highest predicted q value.
         Returns:
-            Probability of taking actions as a vector where each entry is the probability of taking that action
+            The selected action.
         """
-        ################################
-        #   YOUR IMPLEMENTATION HERE   #
-        ################################
-        pass
-
+        action_probs = np.ones(self.env.action_space.n) * self.options.epsilon / self.env.action_space.n
+        action_probs[np.argmax([self.estimator.predict(state, a) for a in range(self.env.action_space.n)])] = 1 - self.options.epsilon + self.options.epsilon / self.env.action_space.n
+        
+        return action_probs
+ 
     def create_greedy_policy(self):
         """
-        Creates a greedy policy based on Q values from self.estimator.predict(s,a=None)
+        Creates a greedy policy based on Q values from self.estimator.predict(s, a=None).
 
         Returns:
-            A function that takes a state as input and returns a greedy
-            action.
+            A function that takes a state as input and returns a greedy action.
         """
         nA = self.env.action_space.n
 
         def policy_fn(state):
-            ################################
-            #   YOUR IMPLEMENTATION HERE   #
-            ################################
-            
-            pass
+            q_values = [self.estimator.predict(state, a) for a in range(nA)]
+            return np.argmax(q_values)
+
         return policy_fn
 
     def plot(self, stats, smoothing_window=20, final=False):
@@ -165,7 +170,6 @@ class ApproxQLearning(QLearning):
 
     def plot_q_function(self):
         plotting.plot_cost_to_go_mountain_car(self.env, self.estimator)
-
 
 class Estimator:
     """
