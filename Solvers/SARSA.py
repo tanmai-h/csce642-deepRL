@@ -35,11 +35,12 @@ class Sarsa(AbstractSolver):
 
         # Reset the environment
         state, _ = self.env.reset()
+        #init for the first action
         action = np.argmax(self.epsilon_greedy_action(state))
 
         for _ in range(self.options.steps):
             next_state, reward, done, _, = self.step(action)
-            next_action = np.argmax(self.epsilon_greedy_action(state))
+            next_action = np.argmax(self.epsilon_greedy_action(next_state))
             # SARSA update rule
             target = reward + self.options.gamma * self.Q[next_state][next_action]
             self.Q[state][action] += self.options.alpha * (target - self.Q[state][action])
@@ -78,6 +79,6 @@ class Sarsa(AbstractSolver):
         """
         action_probs = np.ones(self.env.action_space.n) * self.options.epsilon / self.env.action_space.n
         action_probs[np.argmax(self.Q[state])] = 1 - self.options.epsilon + self.options.epsilon / self.env.action_space.n
-        return p
+        return action_probs
     def plot(self, stats, smoothing_window=20, final=False):
         plotting.plot_episode_stats(stats, smoothing_window, final=final)
