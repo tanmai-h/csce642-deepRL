@@ -80,14 +80,7 @@ class DQN(AbstractSolver):
 
     def update_target_model(self):
         # Copy weights from model to target_model
-        target_net_state_dict = self.target_model.state_dict()
-        policy_net_state_dict = self.model.state_dict()
-        for key in policy_net_state_dict.keys():
-            target_net_state_dict[key] = (
-                self.options.tau * policy_net_state_dict[key]
-                + (1 - self.options.tau) * target_net_state_dict[key]
-            )
-        self.target_model.load_state_dict(target_net_state_dict)
+        self.target_model.load_state_dict(self.model.state_dict())
 
     def epsilon_greedy(self, state):
         """
@@ -104,6 +97,7 @@ class DQN(AbstractSolver):
             torch.argmax(values): Returns the index corresponding to the highest value in
                 'values' (a tensor)
         """
+        # Don't forget to convert the states to torch tensors to pass them through the network.
         state = torch.as_tensor(state, dtype=torch.float32)
         q_values = self.model(state)
         if random.random() < self.options.epsilon:
@@ -113,22 +107,27 @@ class DQN(AbstractSolver):
             # Exploit: Choose the action with the highest Q-value
             action = torch.argmax(q_values).item()
         # Convert action to a one-hot vector
-        action_probs = np.zeros(self.env.action_space.n)
-        action_probs[action] = 1.0
+        action_probs = np.ones(self.env.action_space.n) * self.options.epsilon / self.env.action_space.n
+        action_probs[action] = 1.0 - self.options.epsilon + (self.options.epsilon / self.env.action_space.n)
         return action_probs
+
 
     def compute_target_values(self, next_states, rewards, dones):
         """
-        Computes the target Q values.
+        Computes the target q values.
 
         Returns:
-            The target Q values (as a tensor).
+            The target q value (as a tensor).
         """
-        next_states = torch.as_tensor(next_states, dtype=torch.float32)
-        target_q_values = self.target_model(next_states)
-        max_q_values, _ = target_q_values.max(dim=1)
-        target_values = rewards + (1.0 - dones) * self.options.gamma * max_q_values
-        return target_values
+        next_q_values = self.target_model(next_states)
+        if len(next_q_values.shape) == 1:
+            target_q_values = next_q_values
+        else:
+            target_q_values, _ = next_q_values.max(dim=1)
+            print("TQ: ", target_q_values.shape)
+        target_q_values = rewards + (1 - dones) * self.options.gamma * target_q_values
+        return target_q_values
+
 
     def replay(self):
         """
@@ -138,44 +137,43 @@ class DQN(AbstractSolver):
             self.target_model(state): predicted q values as an array with entry
                 per action
         """
-        if len(self.replay_memory) < self.options.batch_size:
-            return
-        minibatch = random.sample(self.replay_memory, self.options.batch_size)
-        # minibatch = [
-        #     np.array(
-        #         [
-        #             transition[idx]
-        #             for transition, idx in zip(minibatch, [i] * len(minibatch))
-        #         ]
-        #     )
-        #     for i in range(5)
-        # ]
-        states, actions, rewards, next_states, dones = list(zip(*minibatch))
-        # Convert numpy arrays to torch tensors
-        states = torch.as_tensor(states, dtype=torch.float32)
-        actions = torch.as_tensor(actions, dtype=torch.float32)
-        rewards = torch.as_tensor(rewards, dtype=torch.float32)
-        next_states = torch.as_tensor(next_states, dtype=torch.float32)
-        dones = torch.as_tensor(dones, dtype=torch.float32)
+        if len(self.replay_memory) > self.options.batch_size:
+            minibatch = random.sample(self.replay_memory, self.options.batch_size)
+            minibatch = [
+                np.array(
+                    [
+                        transition[idx]
+                        for transition, idx in zip(minibatch, [i] * len(minibatch))
+                    ]
+                )
+                for i in range(5)
+            ]
+            states, actions, rewards, next_states, dones = minibatch
+            # Convert numpy arrays to torch tensors
+            states = torch.as_tensor(states, dtype=torch.float32)
+            actions = torch.as_tensor(actions, dtype=torch.float32)
+            rewards = torch.as_tensor(rewards, dtype=torch.float32)
+            next_states = torch.as_tensor(next_states, dtype=torch.float32)
+            dones = torch.as_tensor(dones, dtype=torch.float32)
 
-        # Current Q-values
-        current_q = self.model(torch.cat(states)).gather(1, torch.cat(actions))
-        # # Q-values for actions in the replay memory
-        # current_q = torch.gather(
-        #     current_q, dim=1, index=actions.unsqueeze(1).long()
-        # ).squeeze(-1)
+            # Current Q-values
+            current_q = self.model(states)
+            # Q-values for actions in the replay memory
+            current_q = torch.gather(
+                current_q, dim=1, index=actions.unsqueeze(1).long()
+            ).squeeze(-1)
 
-        with torch.no_grad():
-            target_q = self.compute_target_values(next_states, rewards, dones)
+            with torch.no_grad():
+                target_q = self.compute_target_values(next_states, rewards, dones)
 
-        # Calculate loss
-        loss_q = self.loss_fn(current_q, target_q)
+            # Calculate loss
+            loss_q = self.loss_fn(current_q, target_q)
 
-        # Optimize the Q-network
-        self.optimizer.zero_grad()
-        loss_q.backward()
-        torch.nn.utils.clip_grad_value_(self.model.parameters(), 100)
-        self.optimizer.step()
+            # Optimize the Q-network
+            self.optimizer.zero_grad()
+            loss_q.backward()
+            torch.nn.utils.clip_grad_value_(self.model.parameters(), 100)
+            self.optimizer.step()
 
     def memorize(self, state, action, reward, next_state, done):
         self.replay_memory.append((state, action, reward, next_state, done))
@@ -185,36 +183,47 @@ class DQN(AbstractSolver):
         Perform a single episode of the Q-Learning algorithm for off-policy TD
         control using a DNN Function Approximation. Finds the optimal greedy policy
         while following an epsilon-greedy policy.
+
+        Use:
+            self.epsilon_greedy(state): return probabilities of actions.
+            np.random.choice(array, p=prob): sample an element from 'array' based on their corresponding
+                probabilites 'prob'.
+            self.memorize(state, action, reward, next_state, done): store the transition in the replay buffer
+            self.update_target_model(): copy weights from model to target_model
+            self.replay(): TD learning for q values on past transitions
+            self.options.update_target_estimator_every: Copy parameters from the Q estimator to the
+                target estimator every N steps
         """
 
         # Reset the environment
         state, _ = self.env.reset()
-        greedy_policy = self.create_greedy_policy()
+
         for _ in range(self.options.steps):
-            # Epsilon-greedy action selection
-            # action_probs = self.epsilon_greedy(state)
-            # action = np.random.choice(range(self.env.action_space.n), p=action_probs)
-            # action = np.random.choice(range(self.env.action_space.n))
-            action = greedy_policy(state)
-            # Take a step in the environment
-            next_state, reward, terminated, truncated, _ = self.env.step(action)
-            done = terminated or truncated
-            # Store the transition in the replay buffer
-            if done:
-                next_state = None
-                state, _ = self.env.reset()
-            else:
-                state = next_state
-              
+            actions = self.epsilon_greedy(state)
+            action = np.argmax(actions)
+
+            # Take the action and observe the next state and reward
+            next_state, reward, done, _ = self.step(action)
+
+            # Memorize the transition
             self.memorize(state, action, reward, next_state, done)
-            
-            # Update the Q-network using experience replay
+
+            # Update the state
+            state = next_state
+
+            # episode_reward += reward
+
             self.replay()
+
+            # Update the target Q-network every 'update_target_estimator_every' steps
+            if self.n_steps % self.options.update_target_estimator_every == 0:
+                self.update_target_model()
+
             self.n_steps += 1
 
-            # if self.n_steps % self.options.update_target_estimator_every == 0:
-                # Update the target Q-network
-            self.update_target_model()
+            if done:
+                break
+
 
     def __str__(self):
         return "DQN"
@@ -226,12 +235,15 @@ class DQN(AbstractSolver):
         """
         Creates a greedy policy based on Q values.
 
+
         Returns:
-            A function that takes an observation as input and returns a greedy action
+            A function that takes an observation as input and returns a greedy
+            action
         """
 
         def policy_fn(state):
             state = torch.as_tensor(state, dtype=torch.float32)
             q_values = self.model(state)
             return torch.argmax(q_values).detach().numpy()
+
         return policy_fn
